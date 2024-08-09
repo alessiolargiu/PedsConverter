@@ -81,7 +81,7 @@ for i in range(nimmagini):
     #Scelgo il livello 5 con lo sfondo con gli omini modellati e vestiti
     elif(str(sys.argv[1])=="-nobgrem"):
         init_images = [
-            encode_file_to_base64("images/Mall_synt_reduced/Level5/map" + str(i) +".png")
+            encode_file_to_base64("prova/map" + str(i) +".png")
         ]
 
 
@@ -89,13 +89,14 @@ for i in range(nimmagini):
       #"prompt": "people walking, top angle, cctv still frame",
       'prompt':'A CCTV still frame from a top-down angle showing an urban street with numerous people walking in different directions. The pedestrians vary in age, clothing, and accessories. The sidewalk is crowded, with street vendors and parked bicycles visible. Shadows of the people and buildings are cast on the pavement.',
       'negative_prompt': 'Cartoonish characters, unrealistic proportions, exaggerated features, bright and unrealistic colors, fantasy elements, non-human characters, artificial lighting, surreal backgrounds, comic-style outlines, animated effects, overly clean or glossy surfaces, lack of shadows, floating objects, distorted perspectives',
+      
       'width': 640 * imgmultiplier,
       'height': 480 * imgmultiplier,
-      'sampler_index': 'Euler',
+      'sampler_index': 'Heun',
       #'steps': 80,
-      'steps':40,
+      'steps':100,
       'cfg_scale': 7,
-      'denoising_strength': 0.35,
+      'denoising_strength': 0.25,
       'init_images': init_images
     }
 
@@ -125,15 +126,18 @@ for i in range(nimmagini):
         inputnormale = inputnormale[:, :, ::-1].copy()
 
         input_ench = input
-        input_ench = ImageEnhance.Contrast(input_ench).enhance(6)
+        #input_ench = ImageEnhance.Contrast(input_ench).enhance(4)
         input_ench = ImageEnhance.Color(input_ench).enhance(0)
 
+        #input_ench = input_ench.convert('L')
+        threshold = 180 + 10
 
+        input_ench = input_ench.point(lambda p: p > threshold and 255)
         input_ench.save(newpath + "tmp/nobg/outcontrasty" + str(i) +".png")
 
 
-        low_gray = np.array([0, 0, 50])
-        high_gray = np.array([255, 255, 255])
+        low_gray = (255, 255, 255)
+        high_gray = (255, 255, 255)
 
 
         img = np.array(input_ench)
@@ -143,13 +147,18 @@ for i in range(nimmagini):
         inputnormale = cv2.resize(inputnormale, (640, 480), interpolation=cv2.INTER_CUBIC)
 
         mask = cv2.inRange(img, low_gray, high_gray)
+        cv2.imwrite(newpath + "tmp/nobg/mask" + str(i) +".png",mask)
 
-        mask = cv2.blur(mask,(3,3))
+        mask = cv2.blur(mask,(1,1))
         #mask = cv2.GaussianBlur(mask,(5,5),1000)
+        cv2.imwrite(newpath + "tmp/nobg/maskblurred" + str(i) +".png",mask)
+        
 
 
         mask = 255-mask
         res = cv2.bitwise_and( inputnormale, inputnormale, mask=mask)
+
+
 
         res = cv2.cvtColor(res, cv2.COLOR_BGR2BGRA)
         res[:,:,3] = mask 
@@ -157,7 +166,22 @@ for i in range(nimmagini):
         res = Image.fromarray(res)
 
         res = res.resize((640, 480), Image.LANCZOS)
-        res = np.array(res)
+        edgesRes = res.filter(ImageFilter.FIND_EDGES)
+        edgesRes = ImageEnhance.Color(edgesRes).enhance(0)
+
+        edgesRes.save(newpath + "tmp/nobg/edgesRes" + str(i) +".png")
+
+        edgesRes = np.array(edgesRes)
+        edgesRes = edgesRes[:, :, ::-1].copy()
+
+        edgesRes[:, :, :3] = 0
+        maskEdge = edgesRes[:,:,3] > 200
+        edgesRes[:, :, 3] = maskEdge * 255
+
+        #edgesRes = cv2.blur(edgesRes,(3,3))
+
+
+        res = res - edgesRes
 
         cv2.imwrite(newpath + "tmp/nobg/outputnobg" + str(i) +".png",res)
 
@@ -172,7 +196,7 @@ for i in range(nimmagini):
 
         #img1.paste(img2, (0,0), img2) 
         Image.alpha_composite(img1, img2).save(newpath + "results/bgremoval/outputbgadded" + str(i) +".png")
-        print("Salvata in " + newpath + "results/bgremoval/outputbgadded" + str(i) +".png")
+        print("Salvata in " + newpath + "results/bgremoval/map" + str(i) +".png")
 
 
 
@@ -188,7 +212,7 @@ for i in range(nimmagini):
             file.write(str(r['info']))
 
 
-        print("Salvata in " + newpath + "results/nobgremoval/output" + str(i) +".png")
+        print("Salvata in " + newpath + "results/nobgremoval/map" + str(i) +".png")
 
 
 endtime = time.time()
